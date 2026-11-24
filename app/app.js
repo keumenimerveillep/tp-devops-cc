@@ -1,87 +1,586 @@
-const $=s=>document.querySelector(s),J=a=>a.join('');
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const cfa=n=>`${new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Math.round(n||0))} FCFA`;
-const V_T=['vente','location','entretien'],V_S=['disponible','reserve','vendu','loue','en_atelier'],R_S=['reservee','en_cours','retourne','conclue','annulee'],M_S=['planifie','en_cours','termine'],F_S=['en_attente','partielle','payee'];
-const M={
- vehicules:{t:'Véhicules',a:'vehicles',c:['photo','marque','modele','annee','immatriculation','kilometrage','type','statut','prix_vente','tarif_jour'],flt:{type:V_T,statut:V_S},
-  f:[['marque'],['modele'],['annee','n'],['immatriculation'],['kilometrage','n'],['type','s',V_T],['prix_vente','n'],['tarif_jour','n'],['photo','url'],['statut','s',V_S]]},
- clients:{t:'Clients',a:'clients',c:['nom','prenom','email','telephone','permis_numero','piece_identite'],
-  f:[['nom'],['prenom'],['email'],['telephone'],['permis_numero'],['piece_identite']]},
- reservations:{t:'Réservations & ventes',a:'reservations',c:['vehicle_id','client_id','kind','date_debut','date_fin','montant','statut'],flt:{kind:['location','vente'],statut:R_S},
-  f:[['vehicle_id','r'],['client_id','r'],['kind','s',['location','vente']],['date_debut','d'],['date_fin','d'],['montant','n'],['statut','s',R_S]]},
- maintenance:{t:'Maintenance & entretien',a:'maintenance',c:['vehicle_id','client_id','date_prevue','description','cout','statut'],flt:{statut:M_S},
-  f:[['vehicle_id','r'],['client_id','r'],['date_prevue','d'],['description'],['cout','n'],['statut','s',M_S]]},
- factures:{t:'Facturation & paiement',a:'invoices',c:['id','client_id','kind','ref_id','montant','statut','date_emission'],flt:{kind:V_T,statut:F_S},
-  f:[['client_id','r'],['kind','s',V_T],['ref_id','n'],['montant','n'],['statut','s',F_S],['date_emission','d']]}};
-const go_=n=>go(n);
-const act={
- vehicules:[['Historique',r=>hist('vehicles',r.id)]],clients:[['Historique',r=>hist('clients',r.id)]],
- reservations:[['Retour',async r=>{const x=await api(`reservations/${r.id}/return`,{m:'POST'});if(x.error)return toast(x.error,'error');toast('Véhicule retourné');go('reservations')}],['Conclure',async r=>{const x=await api('reservations/'+r.id,{m:'PUT',b:{...r,statut:'conclue'}});if(x.error)return toast(x.error,'error');toast('Vente conclue');go('reservations')}],['Facturer',r=>inv('reservation',r.id)]],
- maintenance:[['Commencer',async r=>{const x=await api('maintenance/'+r.id,{m:'PUT',b:{...r,statut:'en_cours'}});if(x.error)return toast(x.error,'error');toast('Maintenance commencée');go('maintenance')}],['Terminer',async r=>{const x=await api('maintenance/'+r.id,{m:'PUT',b:{...r,statut:'termine'}});if(x.error)return toast(x.error,'error');toast('Maintenance terminée');go('maintenance')}],['Facturer',r=>inv('maintenance',r.id)]],
- factures:[['Marquer payée',async r=>{const x=await api('invoices/'+r.id,{m:'PUT',b:{statut:'payee'}});if(x.error)return toast(x.error,'error');toast('Facture payée');go('factures')}]]};
-let refs={},cur={name:'dashboard',rows:[],q:{}};
-const lab=(k,id)=>{const r=refs[k==='vehicle_id'?'vehicles':'clients'].find(x=>x.id==id);return r?(k==='vehicle_id'?`${r.marque} ${r.modele} (${r.immatriculation})`:`${r.prenom} ${r.nom}`):''};
-const fallbackCar=(r={})=>{
- const label=esc(`${r.marque||'Voiture'} ${r.modele||''}`).replace(/'/g,'%27');
- const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" rx="18" fill="#e8edf4"/><circle cx="68" cy="136" r="24" fill="#17212b"/><circle cx="252" cy="136" r="24" fill="#17212b"/><path d="M42 118l38-54h145l55 54 20 18H22z" fill="#315bea"/><path d="M91 72h120l37 46H56z" fill="#cbd8eb"/><rect x="135" y="82" width="74" height="32" rx="4" fill="#eef4fb"/><text x="160" y="165" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#17212b">${label}</text></svg>`;
- return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-};
-const carImage=r=>esc(r.photo||r.image_url||fallbackCar(r));
-const cell=(c,v,r)=>c==='photo'?`<img class="car-thumb" src="${carImage(r)}" alt="${esc(r.marque||'Voiture')} ${esc(r.modele||'')}" onerror="this.onerror=null;this.src='${fallbackCar(r)}'">`:c.endsWith('_id')&&c!=='ref_id'?esc(lab(c,v)):c==='statut'?`<span class="b b-${v}">${esc(v)}</span>`:/^(montant|cout|prix_vente|tarif_jour)$/.test(c)&&v!=null?cfa(v):esc(v);
-const toast=(message,kind='')=>{const t=$('#toast');t.textContent=message;t.className=kind+' show';clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.className='',2600)};
-const tableSearch=(rows,query)=>{const q=query.trim().toLowerCase();if(!q)return rows;return rows.filter(r=>Object.values(r).some(v=>String(v??'').toLowerCase().includes(q)))};
+(() => {
+  const FREE_SHIPPING_THRESHOLD = 98400;
+  const STANDARD_SHIPPING_FEE = 5248;
 
-async function go(name){
- if(name==='base')name='dashboard';
- cur.name=name;document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===name));
- refs={vehicles:await api('vehicles'),clients:await api('clients')};const main=$('main');
- if(name==='dashboard')return dash(main);if(name==='base')return base(main);
- const m=M[name],q=cur.q[name]||{};const apiQ=new URLSearchParams(Object.entries(q).filter(([k])=>k!=='search'));cur.rows=await api(m.a+'?'+apiQ);
- const visible=tableSearch(cur.rows,q.search||'');
- main.innerHTML=`<header><div><h2>${m.t}</h2><p class="page-subtitle">${visible.length} élément${visible.length>1?'s':''}</p></div><button class="p" data-n><span aria-hidden="true">＋</span> Ajouter</button></header>`+
- (name==='reservations'?`<div class="bar"><label>Disponibles du<input type="date" id="d1"></label><label>au<input type="date" id="d2"></label><button data-av>Voir les véhicules libres</button><span id="av"></span></div>`:'')+
- `<div class="bar"><label class="search-box">Rechercher<span class="search-wrap"><input id="table-search" type="search" placeholder="Nom, immatriculation, statut..." value="${esc(q.search||'')}"></span></label>${J(Object.entries(m.flt||{}).map(([k,o])=>`<label>${k.replace('_',' ')}<select data-f="${k}"><option value="">Tous</option>${J(o.map(x=>`<option ${q[k]==x?'selected':''}>${x}</option>`))}</select></label>`))}</div>`+
- `<div class="tw"><table><thead><tr>${J(m.c.map(c=>`<th>${c.replace(/_id$/,'').replaceAll('_',' ')}</th>`))}<th>Actions</th></tr></thead><tbody>${visible.length?J(visible.map(r=>{const i=cur.rows.indexOf(r);return `<tr>${J(m.c.map(c=>`<td>${cell(c,r[c],r)}</td>`))}<td class="a">${J((act[name]||[]).map((a,j)=>`<button data-k="${j}" data-i="${i}">${a[0]}</button>`))}<button data-e="${i}">Modifier</button><button class="x" data-d="${i}">Supprimer</button></td></tr>`})):`<tr><td class="row-empty" colspan="${m.c.length+1}">Aucune donnée ne correspond à votre recherche.</td></tr>`}</tbody></table></div>`;
-}
-async function form(m,row={}){
- const d=$('#dlg');
- d.innerHTML=`<form><h3>${row.id?'Modifier':'Ajouter'} — ${m.t}</h3>${J(m.f.map(([n,ty,o])=>`<label>${n.replace('_id','').replaceAll('_',' ')}${ty==='s'?`<select name="${n}">${J(o.map(x=>`<option ${row[n]==x?'selected':''}>${x}</option>`))}</select>`:ty==='r'?`<select name="${n}" required>${J(refs[n==='vehicle_id'?'vehicles':'clients'].map(x=>`<option value="${x.id}" ${row[n]==x.id?'selected':''}>${esc(lab(n,x.id))}</option>`))}</select>`:`<input name="${n}" type="${ty==='n'?'number':ty==='d'?'date':ty==='url'?'url':'text'}" step="any" value="${esc(row[n]??'')}" ${['nom','prenom','marque','modele','immatriculation','vehicle_id','client_id','date_debut','date_prevue'].includes(n)||ty==='d'?'required':''}>`}</label>`))}${m.a==='vehicles'?`<div class="photo-preview"><img id="photo-preview" src="${esc(row.photo||fallbackCar(row))}" alt="Aperçu du véhicule"><small>Adresse de l’image du véhicule</small></div>`:''}<p id="err"></p><menu><button type="button" onclick="dlg.close()">Annuler</button><button>Enregistrer</button></menu></form>`;
- d.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-  const r=await api(row.id?`${m.a}/${row.id}`:m.a,{m:row.id?'PUT':'POST',b});if(r.error)return $('#err').textContent=r.error;d.close();toast(row.id?'Modification enregistrée':'Nouvel élément ajouté');go(cur.name)};
- if(m.a==='vehicles'){
-  const photo=d.querySelector('input[name="photo"]'),preview=d.querySelector('#photo-preview');
-  photo?.addEventListener('input',()=>{preview.src=photo.value||fallbackCar(row)});
-  preview?.addEventListener('error',()=>{preview.onerror=null;preview.src=fallbackCar(row)});
- }
- d.showModal();
-}
-async function hist(t,id){const h=await api(`history/${t}/${id}`),d=$('#dlg');
- d.innerHTML=`<h3>Historique</h3>${J(Object.entries(h).filter(([,v])=>v.length).map(([k,v])=>`<h4>${k}</h4><ul>${J(v.map(x=>`<li>${esc(Object.values(x).slice(1).filter(Boolean).join(' · '))}</li>`))}</ul>`))||'<p>Aucun historique pour le moment.</p>'}<menu><button onclick="dlg.close()">Fermer</button></menu>`;d.showModal()}
-async function inv(k,id){const r=await api(`invoices/from/${k}/${id}`,{m:'POST'});if(r.error)return toast(r.error,'error');toast('Facture créée');go('factures')}
-async function dash(main){const s=await api('stats');
- const bars=(a,f=x=>x)=>`<div class="bars">${J(a.map(x=>`<div><span>${esc(x.k)}</span><i style="width:${Math.max(4,100*x.n/Math.max(...a.map(y=>y.n)))}%"></i><b>${f(x.n)}</b></div>`))}</div>`;
- main.innerHTML=`<header><div><h2>Tableau de bord</h2><p class="page-subtitle">Vue d'ensemble de votre activité</p></div></header><div class="cards">${J([['Clients',s.clients],['Locations actives',s.rentals],['Entretiens ouverts',s.ateliers],['Factures impayées',cfa(s.unpaid)]].map(([a,b],i)=>`<div class="card ${i===3?'accent':''}"><small>${a}</small><strong>${b}</strong></div>`))}</div><div class="g2"><section><h3>Encaissé par activité</h3>${s.revenue.length?bars(s.revenue,cfa):'<p class="page-subtitle">Aucun encaissement enregistré.</p>'}</section><section><h3>Parc par statut</h3>${bars(s.vehicles)}</section><section><h3>Facturé par mois</h3>${s.monthly.length?bars(s.monthly.reverse(),cfa):'<p class="page-subtitle">Aucune facture enregistrée.</p>'}</section></div>`}
-const SCHEMA=`vehicles(id, marque, modele, annee, immatriculation UNIQUE, kilometrage, type[vente|location|entretien], prix_vente, tarif_jour, photo, statut[disponible|reserve|vendu|loue|en_atelier])
-clients(id, nom, prenom, email, telephone, permis_numero, piece_identite)
-reservations(id, vehicle_id→vehicles, client_id→clients, kind[location|vente], date_debut, date_fin, montant, statut[reservee|en_cours|retourne|conclue|annulee])
-maintenance(id, vehicle_id→vehicles, client_id→clients, date_prevue, description, cout, statut[planifie|en_cours|termine])
-invoices(id, client_id→clients, kind[vente|location|entretien], ref_id→reservations|maintenance, montant, statut[en_attente|partielle|payee], date_emission)`;
-const DEPLOY=`Local : double-cliquer sur index.html (aucun serveur requis).
-En ligne : déposer le dossier sur Netlify Drop, GitHub Pages ou Cloudflare Pages (site statique).
-Données : stockées dans le localStorage du navigateur (propres à chaque appareil).
-Sauvegarde / transfert : boutons Exporter et Importer ci-dessus.`;
-async function base(main){main.innerHTML=`<header><h2>Base de données &amp; déploiement</h2></header><section><h3>Sauvegarde</h3><p>Les données sont enregistrées dans ce navigateur. Exportez-les régulièrement.</p><div class="bar"><button class="p" data-x>Exporter (JSON)</button><label>Importer un fichier<input type="file" id="imp" accept=".json"></label><button class="x" data-r>Réinitialiser les données</button></div></section><h3 style="margin:16px 0 8px">Schéma des données</h3><pre>${esc(SCHEMA)}</pre><h3 style="margin:16px 0 8px">Déploiement</h3><pre>${esc(DEPLOY)}</pre>`}
-document.addEventListener('click',e=>{const t=e.target,m=M[cur.name];
- if(t.closest('nav a'))return go(t.closest('nav a').dataset.p);
- if(t.dataset.n!==undefined)form(m);
- if(t.dataset.e)form(m,cur.rows[t.dataset.e]);
- if(t.dataset.d&&confirm('Supprimer cet élément ?'))api(`${m.a}/${cur.rows[t.dataset.d].id}`,{m:'DELETE'}).then(r=>{if(r.error)return toast(r.error,'error');toast('Élément supprimé');go(cur.name)});
- if(t.dataset.k)act[cur.name][t.dataset.k][1](cur.rows[t.dataset.i]);
- if(t.dataset.av!==undefined){const d1=$('#d1').value,d2=$('#d2').value;if(!d1||!d2){toast('Sélectionnez les deux dates','error');return}if(d2<d1){toast('La date de fin précède la date de début','error');return}api(`available?debut=${d1}&fin=${d2}`).then(v=>{const el=$('#av');el.textContent=v.error?v.error:v.length?`${v.length} disponible(s) : ${v.map(x=>`${x.marque} ${x.modele}`).join(', ')}`:'Aucun véhicule libre sur cette période.'})}});
-document.addEventListener('input',e=>{if(e.target.id==='table-search'){(cur.q[cur.name]??={}).search=e.target.value;const visible=tableSearch(cur.rows,e.target.value);const tbody=$('.tw tbody');const m=M[cur.name];tbody.innerHTML=visible.length?J(visible.map(r=>{const i=cur.rows.indexOf(r);return `<tr>${J(m.c.map(c=>`<td>${cell(c,r[c],r)}</td>`))}<td class="a">${J((act[cur.name]||[]).map((a,j)=>`<button data-k="${j}" data-i="${i}">${a[0]}</button>`))}<button data-e="${i}">Modifier</button><button class="x" data-d="${i}">Supprimer</button></td></tr>`})): `<tr><td class="row-empty" colspan="${m.c.length+1}">Aucun résultat.</td></tr>`}});
-document.addEventListener('change',e=>{const f=e.target.dataset.f;if(f){(cur.q[cur.name]??={})[f]=e.target.value;go(cur.name)}});
-document.addEventListener('click',e=>{const t=e.target;
- if(t.dataset.x!==undefined){exportDb();toast('Sauvegarde exportée')}
- if(t.dataset.r!==undefined&&confirm('Effacer toutes les données et recharger la démo ?')){resetDb();toast('Données réinitialisées');go('base')}});
-document.addEventListener('change',e=>{if(e.target.id==='imp'&&e.target.files[0])importDb(e.target.files[0]).then(ok=>{if(!ok)return toast('Fichier invalide','error');toast('Import réussi');go('base')})});
-go('dashboard');
+  let products = DB.loadProducts();
+  let cart = DB.loadCart();
+
+  const state = {
+    category: "all",
+    search: "",
+    size: "all",
+    maxPrice: 230000,
+    sort: "featured",
+    adminMode: false,
+    modalSelectedSize: null
+  };
+
+  // Éléments du DOM
+  const storefrontView = document.getElementById("storefront-view");
+  const adminView = document.getElementById("admin-view");
+  const toggleAdminBtn = document.getElementById("toggle-admin-btn");
+  const heroAdminBtn = document.getElementById("hero-admin-btn");
+  const backToStoreBtn = document.getElementById("back-to-store-btn");
+  const resetDbBtn = document.getElementById("reset-db-btn");
+
+  const navLinks = document.querySelectorAll(".nav-link");
+  const searchInput = document.getElementById("search-input");
+  const sizeFilter = document.getElementById("size-filter");
+  const priceFilter = document.getElementById("price-filter");
+  const priceValue = document.getElementById("price-value");
+  const sortSelect = document.getElementById("sort-select");
+  const resetFiltersBtn = document.getElementById("reset-filters-btn");
+  const resultsCount = document.getElementById("results-count");
+  const productsGrid = document.getElementById("products-grid");
+
+  const productModal = document.getElementById("product-modal");
+  const closeModalBtn = document.getElementById("close-modal-btn");
+  const productModalContent = document.getElementById("product-modal-content");
+
+  const cartDrawer = document.getElementById("cart-drawer");
+  const openCartBtn = document.getElementById("open-cart-btn");
+  const closeCartBtn = document.getElementById("close-cart-btn");
+  const cartCount = document.getElementById("cart-count");
+  const cartItemsEl = document.getElementById("cart-items");
+  const shippingBar = document.getElementById("shipping-bar");
+  const cartSubtotal = document.getElementById("cart-subtotal");
+  const cartShipping = document.getElementById("cart-shipping");
+  const cartTotal = document.getElementById("cart-total");
+  const checkoutBtn = document.getElementById("checkout-btn");
+
+  const productForm = document.getElementById("product-form");
+  const formTitle = document.getElementById("form-title");
+  const productIdInput = document.getElementById("product-id");
+  const prodNameInput = document.getElementById("prod-name");
+  const prodCategoryInput = document.getElementById("prod-category");
+  const prodPriceInput = document.getElementById("prod-price");
+  const prodStockInput = document.getElementById("prod-stock");
+  const prodBadgeInput = document.getElementById("prod-badge");
+  const prodImageInput = document.getElementById("prod-image");
+  const prodDescriptionInput = document.getElementById("prod-description");
+  const cancelEditBtn = document.getElementById("cancel-edit-btn");
+  const adminProductsTbody = document.getElementById("admin-products-tbody");
+  const adminStats = document.getElementById("admin-stats");
+  const toastContainer = document.getElementById("toast-container");
+
+  function formatFCFA(amount) {
+    const formatted = new Intl.NumberFormat("fr-FR", {
+      maximumFractionDigits: 0
+    }).format(Math.round(Number(amount) || 0));
+    return `${formatted} FCFA`;
+  }
+
+  function showToast(message) {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.textContent = message;
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.remove();
+    }, 3000);
+  }
+
+  function getFilteredProducts() {
+    return products
+      .filter((item) => {
+        const matchesCat = state.category === "all" || item.category === state.category;
+        const matchesSize = state.size === "all" || (item.sizes && item.sizes.includes(state.size));
+        const matchesPrice = Number(item.price) <= Number(state.maxPrice);
+        const query = state.search.trim().toLowerCase();
+        const matchesQuery =
+          !query ||
+          item.name.toLowerCase().includes(query) ||
+          item.category.toLowerCase().includes(query) ||
+          (item.description && item.description.toLowerCase().includes(query));
+        return matchesCat && matchesSize && matchesPrice && matchesQuery;
+      })
+      .sort((a, b) => {
+        if (state.sort === "price-asc") return a.price - b.price;
+        if (state.sort === "price-desc") return b.price - a.price;
+        if (state.sort === "name-asc") return a.name.localeCompare(b.name, "fr");
+        return 0;
+      });
+  }
+
+  function renderCatalog() {
+    const filtered = getFilteredProducts();
+    resultsCount.textContent =
+      filtered.length === 0
+        ? "Aucun vêtement ne correspond à vos critères."
+        : `${filtered.length} article${filtered.length > 1 ? "s" : ""} disponible${filtered.length > 1 ? "s" : ""}`;
+
+    if (filtered.length === 0) {
+      productsGrid.innerHTML = "";
+      return;
+    }
+
+    productsGrid.innerHTML = filtered
+      .map((item) => {
+        const isOutOfStock = Number(item.stock) <= 0;
+        const defaultSize = (item.sizes && item.sizes[0]) || "Unique";
+        return `
+          <article class="product-card">
+            <div class="product-media" data-open-modal="${item.id}">
+              <img src="${item.image}" alt="${item.name}" loading="lazy" />
+              ${item.badge ? `<span class="product-badge">${item.badge}</span>` : ""}
+            </div>
+            <div class="product-body">
+              <div class="product-meta">
+                <span>${item.category}</span>
+                <span>${isOutOfStock ? "Rupture de stock" : `Stock : ${item.stock}`}</span>
+              </div>
+              <h3 class="product-title" data-open-modal="${item.id}">${item.name}</h3>
+              <div class="product-sizes">
+                ${(item.sizes || []).map((s) => `<span class="size-chip">${s}</span>`).join("")}
+              </div>
+              <div class="product-footer">
+                <span class="product-price">${formatFCFA(item.price)}</span>
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  data-quick-add="${item.id}"
+                  data-default-size="${defaultSize}"
+                  ${isOutOfStock ? "disabled" : ""}
+                >
+                  ${isOutOfStock ? "Épuisé" : "Ajouter"}
+                </button>
+              </div>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  function openProductModal(productId) {
+    const item = products.find((p) => p.id === productId);
+    if (!item) return;
+
+    const sizes = item.sizes && item.sizes.length ? item.sizes : ["Unique"];
+    state.modalSelectedSize = sizes[0];
+
+    productModalContent.innerHTML = `
+      <div class="modal-grid">
+        <img src="${item.image}" alt="${item.name}" class="modal-img" />
+        <div>
+          <span class="eyebrow">${item.category}</span>
+          <h2 style="margin:0 0 0.5rem;">${item.name}</h2>
+          <p style="font-size:1.3rem;font-weight:700;margin:0 0 0.8rem;">${formatFCFA(item.price)}</p>
+          <p class="muted" style="margin:0 0 1rem;">${item.description || "Pièce sélectionnée par Maison Élégance."}</p>
+          <p style="font-size:0.86rem;margin:0 0 0.6rem;"><strong>Disponibilité :</strong> ${item.stock > 0 ? `${item.stock} en stock` : "Rupture de stock"}</p>
+          <div>
+            <strong style="font-size:0.86rem;">Choisir une taille :</strong>
+            <div class="size-options" id="modal-size-options">
+              ${sizes
+                .map(
+                  (sz, idx) =>
+                    `<button type="button" class="size-option-btn ${idx === 0 ? "active" : ""}" data-size="${sz}">${sz}</button>`
+                )
+                .join("")}
+            </div>
+          </div>
+          <button
+            type="button"
+            class="btn btn-primary btn-block"
+            id="modal-add-to-cart"
+            ${item.stock <= 0 ? "disabled" : ""}
+          >
+            ${item.stock <= 0 ? "Indisponible" : "Ajouter au panier"}
+          </button>
+        </div>
+      </div>
+    `;
+
+    productModal.classList.remove("hidden");
+
+    document.querySelectorAll("#modal-size-options .size-option-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#modal-size-options .size-option-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        state.modalSelectedSize = btn.dataset.size;
+      });
+    });
+
+    const addBtn = document.getElementById("modal-add-to-cart");
+    if (addBtn) {
+      addBtn.addEventListener("click", () => {
+        addToCart(item.id, state.modalSelectedSize);
+        productModal.classList.add("hidden");
+      });
+    }
+  }
+
+  function addToCart(productId, size) {
+    const product = products.find((p) => p.id === productId);
+    if (!product || product.stock <= 0) {
+      showToast("Cet article n'est plus en stock.");
+      return;
+    }
+
+    const existing = cart.find((c) => c.productId === productId && c.size === size);
+    const currentQtyInCart = cart
+      .filter((c) => c.productId === productId)
+      .reduce((acc, c) => acc + c.qty, 0);
+
+    if (currentQtyInCart >= product.stock) {
+      showToast(`Stock maximum atteint (${product.stock}) pour ${product.name}.`);
+      return;
+    }
+
+    if (existing) {
+      existing.qty += 1;
+    } else {
+      cart.push({
+        productId,
+        size: size || "Unique",
+        qty: 1
+      });
+    }
+
+    DB.saveCart(cart);
+    renderCart();
+    showToast(`« ${product.name} » (${size}) ajouté au panier.`);
+  }
+
+  function updateCartQty(index, delta) {
+    const entry = cart[index];
+    if (!entry) return;
+    const product = products.find((p) => p.id === entry.productId);
+    const nextQty = entry.qty + delta;
+
+    if (nextQty <= 0) {
+      cart.splice(index, 1);
+    } else if (product && nextQty > product.stock) {
+      showToast(`Stock disponible : ${product.stock} exemplaires.`);
+      return;
+    } else {
+      entry.qty = nextQty;
+    }
+
+    DB.saveCart(cart);
+    renderCart();
+  }
+
+  function renderCart() {
+    const totalCount = cart.reduce((sum, item) => sum + item.qty, 0);
+    cartCount.textContent = totalCount;
+
+    if (cart.length === 0) {
+      cartItemsEl.innerHTML = `<p class="muted" style="text-align:center;margin-top:2rem;">Votre panier est vide.</p>`;
+      shippingBar.textContent = `Livraison offerte à partir de ${formatFCFA(FREE_SHIPPING_THRESHOLD)}.`;
+      cartSubtotal.textContent = formatFCFA(0);
+      cartShipping.textContent = formatFCFA(0);
+      cartTotal.textContent = formatFCFA(0);
+      return;
+    }
+
+    let subtotal = 0;
+
+    cartItemsEl.innerHTML = cart
+      .map((entry, idx) => {
+        const product = products.find((p) => p.id === entry.productId);
+        if (!product) return "";
+        const lineTotal = product.price * entry.qty;
+        subtotal += lineTotal;
+
+        return `
+          <div class="cart-item">
+            <img src="${product.image}" alt="${product.name}" />
+            <div>
+              <div style="font-weight:700;font-size:0.92rem;">${product.name}</div>
+              <div class="muted" style="font-size:0.8rem;">Taille : ${entry.size} · ${formatFCFA(product.price)}</div>
+              <div class="qty-controls">
+                <button type="button" data-cart-dec="${idx}" aria-label="Diminuer la quantité">−</button>
+                <span>${entry.qty}</span>
+                <button type="button" data-cart-inc="${idx}" aria-label="Augmenter la quantité">+</button>
+              </div>
+            </div>
+            <div style="font-weight:700;font-size:0.92rem;">${formatFCFA(lineTotal)}</div>
+          </div>
+        `;
+      })
+      .join("");
+
+    const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
+    shippingBar.textContent =
+      remaining === 0
+        ? "✓ Vous bénéficiez de la livraison standard offerte !"
+        : `Plus que ${formatFCFA(remaining)} pour la livraison offerte.`;
+
+    const shippingCost = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING_FEE;
+    cartSubtotal.textContent = formatFCFA(subtotal);
+    cartShipping.textContent = shippingCost === 0 ? "Offerte" : formatFCFA(shippingCost);
+    cartTotal.textContent = formatFCFA(subtotal + shippingCost);
+  }
+
+  function checkoutCart() {
+    if (cart.length === 0) {
+      showToast("Votre panier est vide.");
+      return;
+    }
+
+    cart.forEach((entry) => {
+      const product = products.find((p) => p.id === entry.productId);
+      if (product) {
+        product.stock = Math.max(0, Number(product.stock) - entry.qty);
+      }
+    });
+
+    DB.saveProducts(products);
+    cart = [];
+    DB.saveCart(cart);
+
+    renderCatalog();
+    renderCart();
+    renderAdmin();
+    cartDrawer.classList.add("hidden");
+    showToast("Commande confirmée ! Le stock a été mis à jour.");
+  }
+
+  // ADMINISTRATION
+  function setAdminMode(active) {
+    state.adminMode = active;
+    storefrontView.classList.toggle("hidden", active);
+    adminView.classList.toggle("hidden", !active);
+    toggleAdminBtn.setAttribute("aria-pressed", String(active));
+    toggleAdminBtn.textContent = active ? "Voir la boutique" : "Mode Gestion";
+    if (active) {
+      renderAdmin();
+    }
+  }
+
+  function renderAdmin() {
+    const totalArticles = products.length;
+    const totalStock = products.reduce((sum, p) => sum + Number(p.stock || 0), 0);
+    const lowStockCount = products.filter((p) => Number(p.stock || 0) > 0 && Number(p.stock) <= 5).length;
+    const stockValue = products.reduce((sum, p) => sum + Number(p.price || 0) * Number(p.stock || 0), 0);
+
+    adminStats.innerHTML = `
+      <div class="stat-card"><span>Références actives</span><strong>${totalArticles}</strong></div>
+      <div class="stat-card"><span>Unités en stock</span><strong>${totalStock}</strong></div>
+      <div class="stat-card"><span>Stock faible (≤ 5)</span><strong>${lowStockCount}</strong></div>
+      <div class="stat-card"><span>Valeur du stock</span><strong>${formatFCFA(stockValue)}</strong></div>
+    `;
+
+    adminProductsTbody.innerHTML = products
+      .map(
+        (item) => `
+          <tr>
+            <td>
+              <div class="table-item-cell">
+                <img src="${item.image}" alt="${item.name}" class="table-thumb" />
+                <div>
+                  <strong>${item.name}</strong>
+                  <div class="muted" style="font-size:0.78rem;">${(item.sizes || []).join(", ")}</div>
+                </div>
+              </div>
+            </td>
+            <td>${item.category}</td>
+            <td>${formatFCFA(item.price)}</td>
+            <td>${item.stock}</td>
+            <td>
+              <div class="row-actions">
+                <button type="button" class="btn btn-ghost btn-sm" data-edit-id="${item.id}">Modifier</button>
+                <button type="button" class="btn btn-danger btn-sm" data-delete-id="${item.id}">Supprimer</button>
+              </div>
+            </td>
+          </tr>
+        `
+      )
+      .join("");
+  }
+
+  function resetProductForm() {
+    productIdInput.value = "";
+    formTitle.textContent = "Ajouter un vêtement";
+    productForm.reset();
+    prodPriceInput.value = "";
+    prodStockInput.value = "";
+    document.querySelectorAll("#prod-sizes input[type='checkbox']").forEach((cb) => {
+      cb.checked = ["S", "M", "L"].includes(cb.value);
+    });
+  }
+
+  function fillProductForm(product) {
+    productIdInput.value = product.id;
+    formTitle.textContent = "Modifier le vêtement";
+    prodNameInput.value = product.name;
+    prodCategoryInput.value = product.category;
+    prodPriceInput.value = product.price;
+    prodStockInput.value = product.stock;
+    prodBadgeInput.value = product.badge || "";
+    prodImageInput.value = product.image || "";
+    prodDescriptionInput.value = product.description || "";
+
+    document.querySelectorAll("#prod-sizes input[type='checkbox']").forEach((cb) => {
+      cb.checked = Array.isArray(product.sizes) && product.sizes.includes(cb.value);
+    });
+  }
+
+  productForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const selectedSizes = Array.from(document.querySelectorAll("#prod-sizes input[type='checkbox']:checked")).map(
+      (cb) => cb.value
+    );
+
+    const payload = {
+      id: productIdInput.value || `vet-${Date.now()}`,
+      name: prodNameInput.value.trim(),
+      category: prodCategoryInput.value,
+      price: Number(prodPriceInput.value),
+      stock: Math.max(0, parseInt(prodStockInput.value, 10) || 0),
+      badge: prodBadgeInput.value.trim(),
+      sizes: selectedSizes.length ? selectedSizes : ["Unique"],
+      image:
+        prodImageInput.value.trim() ||
+        "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=800&q=80",
+      description: prodDescriptionInput.value.trim()
+    };
+
+    const existingIndex = products.findIndex((p) => p.id === payload.id);
+    if (existingIndex >= 0) {
+      products[existingIndex] = payload;
+      showToast(`« ${payload.name} » mis à jour.`);
+    } else {
+      products.unshift(payload);
+      showToast(`« ${payload.name} » ajouté au catalogue.`);
+    }
+
+    DB.saveProducts(products);
+    resetProductForm();
+    renderCatalog();
+    renderAdmin();
+  });
+
+  cancelEditBtn.addEventListener("click", resetProductForm);
+
+  adminProductsTbody.addEventListener("click", (e) => {
+    const editId = e.target.dataset.editId;
+    const deleteId = e.target.dataset.deleteId;
+
+    if (editId) {
+      const target = products.find((p) => p.id === editId);
+      if (target) {
+        fillProductForm(target);
+        productForm.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } else if (deleteId) {
+      const target = products.find((p) => p.id === deleteId);
+      products = products.filter((p) => p.id !== deleteId);
+      DB.saveProducts(products);
+      renderCatalog();
+      renderAdmin();
+      if (target) showToast(`« ${target.name} » supprimé.`);
+    }
+  });
+
+  resetDbBtn.addEventListener("click", () => {
+    products = DB.resetProducts();
+    cart = [];
+    DB.saveCart(cart);
+    resetProductForm();
+    renderCatalog();
+    renderCart();
+    renderAdmin();
+    showToast("Catalogue et données réinitialisés.");
+  });
+
+  // Événements navigation, filtres, modale et panier
+  navLinks.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (state.adminMode) setAdminMode(false);
+      navLinks.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.category = btn.dataset.category;
+      renderCatalog();
+    });
+  });
+
+  searchInput.addEventListener("input", (e) => {
+    state.search = e.target.value;
+    renderCatalog();
+  });
+
+  sizeFilter.addEventListener("change", (e) => {
+    state.size = e.target.value;
+    renderCatalog();
+  });
+
+  priceFilter.addEventListener("input", (e) => {
+    state.maxPrice = Number(e.target.value);
+    priceValue.textContent = formatFCFA(state.maxPrice);
+    renderCatalog();
+  });
+
+  sortSelect.addEventListener("change", (e) => {
+    state.sort = e.target.value;
+    renderCatalog();
+  });
+
+  resetFiltersBtn.addEventListener("click", () => {
+    state.category = "all";
+    state.search = "";
+    state.size = "all";
+    state.maxPrice = 230000;
+    state.sort = "featured";
+
+    searchInput.value = "";
+    sizeFilter.value = "all";
+    priceFilter.value = "230000";
+    priceValue.textContent = formatFCFA(230000);
+    sortSelect.value = "featured";
+    navLinks.forEach((b) => b.classList.toggle("active", b.dataset.category === "all"));
+    renderCatalog();
+  });
+
+  productsGrid.addEventListener("click", (e) => {
+    const modalTrigger = e.target.closest("[data-open-modal]");
+    if (modalTrigger) {
+      openProductModal(modalTrigger.dataset.openModal);
+      return;
+    }
+
+    const addTrigger = e.target.closest("[data-quick-add]");
+    if (addTrigger) {
+      addToCart(addTrigger.dataset.quickAdd, addTrigger.dataset.defaultSize);
+    }
+  });
+
+  closeModalBtn.addEventListener("click", () => productModal.classList.add("hidden"));
+  productModal.addEventListener("click", (e) => {
+    if (e.target === productModal) productModal.classList.add("hidden");
+  });
+
+  openCartBtn.addEventListener("click", () => cartDrawer.classList.remove("hidden"));
+  closeCartBtn.addEventListener("click", () => cartDrawer.classList.add("hidden"));
+  cartDrawer.addEventListener("click", (e) => {
+    if (e.target === cartDrawer) cartDrawer.classList.add("hidden");
+  });
+
+  cartItemsEl.addEventListener("click", (e) => {
+    if (e.target.dataset.cartInc !== undefined) {
+      updateCartQty(Number(e.target.dataset.cartInc), 1);
+    } else if (e.target.dataset.cartDec !== undefined) {
+      updateCartQty(Number(e.target.dataset.cartDec), -1);
+    }
+  });
+
+  checkoutBtn.addEventListener("click", checkoutCart);
+
+  toggleAdminBtn.addEventListener("click", () => setAdminMode(!state.adminMode));
+  heroAdminBtn.addEventListener("click", () => setAdminMode(true));
+  backToStoreBtn.addEventListener("click", () => setAdminMode(false));
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      productModal.classList.add("hidden");
+      cartDrawer.classList.add("hidden");
+    }
+  });
+
+  document.getElementById("current-year").textContent = new Date().getFullYear();
+
+  // Initialisation
+  renderCatalog();
+  renderCart();
+})();

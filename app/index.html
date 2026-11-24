@@ -1,30 +1,294 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#17212b">
-  <title>Gestion Automobile</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MAISON ÉLÉGANCE — Boutique de Vêtements</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <aside class="sidebar">
-    <div class="brand"><span class="brand-mark">GA</span><div><strong>Garage</strong><small>Gestion automobile</small></div></div>
-    <nav aria-label="Navigation principale">
-      <a data-p="dashboard"><span class="nav-icon">⌂</span><span>Tableau de bord jolie</span></a>
-      <a data-p="vehicules"><span class="nav-icon">◆</span><span>voiture</span></a>
-      <a data-p="clients"><span class="nav-icon">○</span><span>Clients</span></a>
-      <a data-p="reservations"><span class="nav-icon">▣</span><span>Réservations</span></a>
-      <a data-p="maintenance"><span class="nav-icon">⚙</span><span>Maintenance</span></a>
-      <a data-p="factures"><span class="nav-icon">≡</span><span>Factures</span></a>
-    </nav>
-  </aside>
-  <main></main>
-  <dialog id="dlg"></dialog>
-  <div id="toast" role="status" aria-live="polite"></div>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="#top" class="brand" id="brand-logo">
+        <span class="brand-mark">MÉ</span>
+        <span class="brand-text">MAISON ÉLÉGANCE</span>
+      </a>
+
+      <nav class="main-nav" aria-label="Navigation principale">
+        <button type="button" class="nav-link active" data-category="all">Tout</button>
+        <button type="button" class="nav-link" data-category="Nouveautés">Nouveautés</button>
+        <button type="button" class="nav-link" data-category="Femme">Femme</button>
+        <button type="button" class="nav-link" data-category="Homme">Homme</button>
+        <button type="button" class="nav-link" data-category="Accessoires">Accessoires</button>
+      </nav>
+
+      <div class="header-actions">
+        <button type="button" class="btn btn-ghost" id="toggle-admin-btn" aria-pressed="false">
+          Mode Gestion
+        </button>
+        <button type="button" class="btn btn-primary cart-trigger" id="open-cart-btn">
+          <span>Panier</span>
+          <span class="cart-badge" id="cart-count">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- SECTION VITRINE -->
+    <section id="storefront-view">
+      <div class="hero">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <span class="eyebrow">Collection Automne — Hiver</span>
+            <h1>L’élégance intemporelle, pensée pour le quotidien.</h1>
+            <p>
+              Pièces structurées, matières naturelles et coupes essentielles. Explorez le catalogue,
+              filtrez selon vos envies et gérez l’inventaire en direct.
+            </p>
+            <div class="hero-cta">
+              <a href="#catalogue" class="btn btn-primary">Découvrir la collection</a>
+              <button type="button" class="btn btn-outline" id="hero-admin-btn">Gérer le catalogue</button>
+            </div>
+          </div>
+
+          <div class="hero-card">
+            <img
+              src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80"
+              alt="Présentation de la collection Maison Élégance"
+            />
+            <div class="hero-card-caption">
+              <strong>Édition Essentiels</strong>
+              <span>Livraison offerte dès 98 400 FCFA</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="container catalog-section" id="catalogue">
+        <div class="catalog-toolbar">
+          <div class="search-box">
+            <label for="search-input" class="sr-only">Rechercher un vêtement</label>
+            <input
+              type="search"
+              id="search-input"
+              placeholder="Rechercher un manteau, une chemise, une maille..."
+            />
+          </div>
+
+          <div class="filters-row">
+            <div class="filter-group">
+              <label for="size-filter">Taille</label>
+              <select id="size-filter">
+                <option value="all">Toutes tailles</option>
+                <option value="XS">XS</option>
+                <option value="S">S</option>
+                <option value="M">M</option>
+                <option value="L">L</option>
+                <option value="XL">XL</option>
+                <option value="Unique">Taille unique</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="price-filter">Budget max : <strong id="price-value">230 000 FCFA</strong></label>
+              <input type="range" id="price-filter" min="20000" max="230000" step="1000" value="230000" />
+            </div>
+
+            <div class="filter-group">
+              <label for="sort-select">Trier par</label>
+              <select id="sort-select">
+                <option value="featured">Mise en avant</option>
+                <option value="price-asc">Prix croissant</option>
+                <option value="price-desc">Prix décroissant</option>
+                <option value="name-asc">Nom (A → Z)</option>
+              </select>
+            </div>
+
+            <button type="button" class="btn btn-ghost btn-sm" id="reset-filters-btn">
+              Réinitialiser
+            </button>
+          </div>
+        </div>
+
+        <div class="results-bar">
+          <p id="results-count">Chargement du catalogue...</p>
+        </div>
+
+        <div class="products-grid" id="products-grid"></div>
+      </div>
+    </section>
+
+    <!-- SECTION ADMINISTRATION / GESTION -->
+    <section id="admin-view" class="admin-section hidden" aria-label="Gestion du catalogue">
+      <div class="container">
+        <div class="admin-header">
+          <div>
+            <span class="eyebrow">Back-Office Local</span>
+            <h2>Gestion des vêtements &amp; stocks</h2>
+            <p class="muted">
+              Ajoutez, modifiez ou supprimez des articles. Les changements sont enregistrés automatiquement dans votre navigateur.
+            </p>
+          </div>
+          <div class="admin-actions">
+            <button type="button" class="btn btn-outline" id="reset-db-btn">Réinitialiser les données</button>
+            <button type="button" class="btn btn-primary" id="back-to-store-btn">Retour à la boutique</button>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="admin-stats"></div>
+
+        <div class="admin-layout">
+          <form class="admin-form-card" id="product-form">
+            <h3 id="form-title">Ajouter un vêtement</h3>
+            <input type="hidden" id="product-id" />
+
+            <div class="form-group">
+              <label for="prod-name">Nom du vêtement *</label>
+              <input type="text" id="prod-name" required placeholder="Ex. Trench fluide sable" />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="prod-category">Catégorie *</label>
+                <select id="prod-category" required>
+                  <option value="Nouveautés">Nouveautés</option>
+                  <option value="Femme">Femme</option>
+                  <option value="Homme">Homme</option>
+                  <option value="Accessoires">Accessoires</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="prod-price">Prix (FCFA) *</label>
+                <input type="number" id="prod-price" min="1" step="1" required placeholder="84600" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="prod-stock">Stock disponible *</label>
+                <input type="number" id="prod-stock" min="0" step="1" required placeholder="12" />
+              </div>
+
+              <div class="form-group">
+                <label for="prod-badge">Badge</label>
+                <input type="text" id="prod-badge" placeholder="Ex. Best-seller" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Tailles disponibles</label>
+              <div class="sizes-checkboxes" id="prod-sizes">
+                <label><input type="checkbox" value="XS" /> XS</label>
+                <label><input type="checkbox" value="S" checked /> S</label>
+                <label><input type="checkbox" value="M" checked /> M</label>
+                <label><input type="checkbox" value="L" checked /> L</label>
+                <label><input type="checkbox" value="XL" /> XL</label>
+                <label><input type="checkbox" value="Unique" /> Unique</label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="prod-image">URL de l’image</label>
+              <input
+                type="url"
+                id="prod-image"
+                placeholder="https://images.unsplash.com/..."
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="prod-description">Description</label>
+              <textarea
+                id="prod-description"
+                rows="3"
+                placeholder="Matière, coupe, conseils d'entretien..."
+              ></textarea>
+            </div>
+
+            <div class="form-buttons">
+              <button type="submit" class="btn btn-primary" id="submit-product-btn">Enregistrer</button>
+              <button type="button" class="btn btn-ghost" id="cancel-edit-btn">Annuler</button>
+            </div>
+          </form>
+
+          <div class="admin-table-card">
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Article</th>
+                    <th>Catégorie</th>
+                    <th>Prix</th>
+                    <th>Stock</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-products-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>MAISON ÉLÉGANCE</strong>
+        <p class="muted">Prêt-à-porter contemporain &amp; gestion de catalogue interactive.</p>
+      </div>
+      <p class="muted">© <span id="current-year"></span> Maison Élégance. Tous droits réservés.</p>
+    </div>
+  </footer>
+
+  <!-- MODALE DÉTAIL PRODUIT -->
+  <div class="modal-backdrop hidden" id="product-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <button type="button" class="modal-close" id="close-modal-btn" aria-label="Fermer la fenêtre">✕</button>
+      <div class="modal-body" id="product-modal-content"></div>
+    </div>
+  </div>
+
+  <!-- PANIER LATÉRAL -->
+  <div class="drawer-backdrop hidden" id="cart-drawer" role="dialog" aria-modal="true" aria-label="Votre panier">
+    <aside class="drawer-panel">
+      <div class="drawer-header">
+        <h3>Votre panier</h3>
+        <button type="button" class="icon-btn" id="close-cart-btn" aria-label="Fermer le panier">✕</button>
+      </div>
+
+      <div class="shipping-bar" id="shipping-bar"></div>
+
+      <div class="drawer-items" id="cart-items"></div>
+
+      <div class="drawer-footer">
+        <div class="summary-line">
+          <span>Sous-total</span>
+          <strong id="cart-subtotal">0 FCFA</strong>
+        </div>
+        <div class="summary-line">
+          <span>Livraison</span>
+          <span id="cart-shipping">Standard</span>
+        </div>
+        <div class="summary-line total-line">
+          <span>Total estimé</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-block" id="checkout-btn">
+          Valider la commande
+        </button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- NOTIFICATION TOAST -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
   <script src="db.js"></script>
   <script src="app.js"></script>
 </body>
