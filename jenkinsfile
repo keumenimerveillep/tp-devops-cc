@@ -1,0 +1,21 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('1. Récupération du code') {
+            steps {
+                checkout scm
+            }
+        }
+        stage('2. Build & Déploiement Docker') {
+            steps {
+                sh 'docker compose up -d --build'
+            }
+        }
+        stage('3. Vérification des conteneurs') {
+            steps {
+                sh 'docker ps'
+            }
+        }
+    }
+}

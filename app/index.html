@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#17212b">
+  <title>Gestion Automobile</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">GA</span><div><strong>Garage</strong><small>Gestion automobile</small></div></div>
+    <nav aria-label="Navigation principale">
+      <a data-p="dashboard"><span class="nav-icon">⌂</span><span>Tableau de bord</span></a>
+      <a data-p="vehicules"><span class="nav-icon">◆</span><span>Véhicules</span></a>
+      <a data-p="clients"><span class="nav-icon">○</span><span>Clients</span></a>
+      <a data-p="reservations"><span class="nav-icon">▣</span><span>Réservations</span></a>
+      <a data-p="maintenance"><span class="nav-icon">⚙</span><span>Maintenance</span></a>
+      <a data-p="factures"><span class="nav-icon">≡</span><span>Factures</span></a>
+    </nav>
+  </aside>
+  <main></main>
+  <dialog id="dlg"></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
