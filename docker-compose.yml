@@ -1,4 +1,11 @@
 services:
+  app:
+    build: ./app
+    container_name: mon_app_web
+    restart: unless-stopped
+    ports:
+      - "8085:80"
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
