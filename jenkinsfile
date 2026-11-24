@@ -9,6 +9,7 @@ pipeline {
         }
         stage('2. Build & Déploiement Docker') {
             steps {
+                sh 'docker compose down || true'
                 sh 'docker compose up -d --build'
             }
         }
